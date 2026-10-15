@@ -1,0 +1,140 @@
+---
+title: "96 Well Plate_4.1"
+format: html
+editor: visual
+---
+
+```{r}
+library(readxl)
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+library(paletteer)
+library(gt)
+library(scales)
+```
+
+# Data cleaning
+
+```{r}
+#data from the 96well table
+#time is in minutes
+well <- read_excel("96Well_result.xlsx", sheet = "96OD") %>%
+  pivot_longer(cols = -1, names_to = "time", values_to = "value") %>%
+  mutate(time = as.integer(time))
+```
+
+```{r}
+#strain reference to well lables
+reference <- read_excel("96Well_result.xlsx", sheet = "strain_reference")
+```
+
+```{r}
+#hide this
+interesting1190 <- well %>%
+  filter(sample == c("A3", "A11"))
+
+
+interestingBZB <- well %>%
+  filter(sample == c("B2", "A10", "A2", "B10"))
+```
+
+```{r}
+#use this for table: raw data + strain lable
+wellComplete <- left_join(well, reference, by = "sample")
+```
+
+#Drawing killing curves
+
+```{r}
+#all BZB
+allBZB <- wellComplete %>%
+   filter(str_starts(strain, "BZB_"))
+
+#replicates subgroup
+BZB_A <- allBZB %>%
+filter(str_starts(sample, "A"))
+BZB_B <- allBZB %>%
+filter(str_starts(sample, "B"))
+BZB_C <- allBZB %>%
+filter(str_starts(sample, "C"))
+BZB_D <- allBZB %>%
+filter(str_starts(sample, "D"))
+```
+
+```{r}
+#line chart time-killing curve
+ggplot(BZB_A, aes(x=time, y=value, color = strain))+
+  geom_path() +
+  labs(title = "Time-killing curve for BZB")
+```
+
+```{r}
+#all 1190
+all1190 <- wellComplete %>%
+   filter(str_starts(strain, "1190_"))
+
+#1190 replicates subgroups
+EL90_E <- all1190 %>%
+filter(str_starts(sample, "E"))
+EL90F <- all1190 %>%
+filter(str_starts(sample, "F"))
+EL90_G <- all1190 %>%
+filter(str_starts(sample, "G"))
+EL90_H <- all1190 %>%
+filter(str_starts(sample, "H"))
+```
+
+```{r}
+#line chart time-killing curve
+ggplot(EL90_E, aes(x=time, y=value, color = strain))+
+  geom_path() +
+  labs(title = "Time-killing curve for E_1190")
+```
+
+```{r}
+#calculate coefficient of variation
+CI_BZB <- allBZB %>%
+  group_by(strain, time) %>%
+  summarise(
+    mean = mean(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    .groups = "drop") %>%
+  mutate(CV = sd/mean)
+
+```
+
+```{r}
+CI_1190 <- all1190 %>%
+  group_by(strain, time) %>%
+  summarise(
+    mean = mean(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    .groups = "drop") %>%
+  mutate(CV = sd/mean)
+
+```
+
+```{r}
+#coefficient of variation over time
+CI_BZB %>%
+  #filter (strain == "BZB_100E") %>%
+ggplot(aes(x=time, y=CV, color = strain))+
+  geom_line() +
+  geom_point() +
+  facet_wrap(~strain) +
+  labs (title = "Coefficient of variation over time for BZB")
+```
+
+```{r}
+#coefficient of variation over time
+CI_1190 %>%
+  #filter (strain == "BZB_100E") %>%
+ggplot(aes(x=time, y=CV, color = strain))+
+  geom_line() +
+  geom_point() +
+  facet_wrap(~strain) +
+  labs (title = "Coefficient of variation over time for E_1190")
+```
