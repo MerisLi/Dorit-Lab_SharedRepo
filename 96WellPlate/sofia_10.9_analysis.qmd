@@ -34,33 +34,64 @@ combined_df <- bind_rows(hr_growth, Overnight_withBacteriocin_E2_S4)
 ```
 
 ```{r}
-pivoted_OD <- pivot_longer(combined_df, cols = -2, names_to = "Cycle Nr.", values_to = "OD")
+#preserve both cycle nr. and time
+pivoted_OD <- pivot_longer(combined_df, cols = -c(1,2), names_to = "well_ID", values_to = "OD")
 ```
 
 ```{r}
 df_clean <- na.omit(pivoted_OD)
 
-df_clean <- df_clean[-c(1, 2), ]
+#df_clean <- df_clean[-c(1, 2), ]
 
 df_clean <- df_clean |> 
-  filter(`Cycle Nr.`!= "Cycle Nr.")
+  filter(well_ID != "Temp. [°C]")
+```
 
-df_clean <- df_clean |> 
-  filter(`Cycle Nr.`!= "Temp. [°C]")
+```{r}
+#remove useless dataframes if u want
+rm(combined_df)
+rm(pivoted_OD)
+rm(Overnight_withBacteriocin_E2_S4)
+rm(hr_growth)
 ```
 
 #make a key col
 ```{r}
-
+df_clean<- df_clean |>
+   mutate(key = case_when(
+      str_detect(well_ID, "E2") ~ "E2",
+    str_detect(well_ID,"S4") ~ "S4",
+    TRUE ~ "LB"  # default for unmatched values
+  ))
 ```
 
 
-
 #plot curve
-```{r}
-ggplot(df_clean, 
-       aes(x = `Time [s]`, y = OD, color = `Cycle Nr.`)) +
+```{r} 
+#E2 plot
+E2_curve<- df_clean |>
+  filter(key == "E2") |>
+ggplot( 
+       aes(x = `Time [s]`, y = OD, color = `well_ID`)) +
   geom_point() +
-   scale_color_viridis_d(option = "turbo")
+   scale_color_viridis_d(option = "turbo") +
+   labs(title = "Overnight_withBacteriocin_E22")
+
+ggsave("E2_96well_261009.png", plot = E2_curve)
+
+```
+
+```{r}
+#S4 plot
+S4_curve<- df_clean |>
+  filter(key == "S4") |>
+ggplot( 
+       aes(x = `Time [s]`, y = OD, color = `well_ID`)) +
+  geom_point() +
+   scale_color_viridis_d(option = "turbo") +
+  labs(title = "Overnight_withBacteriocin_S4")
+
+ggsave("S4_96well_261009.png", plot = S4_curve)
+
 ```
 
