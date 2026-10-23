@@ -1,0 +1,108 @@
+---
+title: "Template for 96 Well Plate"
+format: html
+---
+
+#import file
+```{r}
+#make sure you set the folder where your file is saved as the current working directory
+#check whether the excel file names are the same and don't change the dataframe name
+library(readxl)
+library(tidyverse)
+
+#Put in file names
+hr_growth <- read_excel("_______.xlsx")
+
+Overnight_withBacteriocin_E2_S4 <- read_excel("_______.xlsx")
+```
+
+#clean and combine
+```{r}
+Overnight_withBacteriocin$"Cycle Nr." <- as.numeric(Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Cycle Nr.")
+
+hr_growth$"Cycle Nr." <- as.numeric(hr_growth$"Cycle Nr.")
+```
+
+```{r}
+Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Cycle Nr." <- Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Cycle Nr." + 6
+```
+
+```{r}
+Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Time [s]" <- Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Time [s]" + 3000
+
+```
+
+```{r}
+combined_df <- bind_rows(hr_growth, Overnight_withBacteriocin_PUT_YOUR_FILE_NAME)
+```
+
+```{r}
+#preserve both cycle nr. and time
+pivoted_OD <- pivot_longer(combined_df, cols = -c(1,2), names_to = "well_ID", values_to = "OD")
+```
+
+```{r}
+df_clean <- na.omit(pivoted_OD)
+
+#df_clean <- df_clean[-c(1, 2), ]
+
+df_clean <- df_clean |> 
+  filter(well_ID != "Temp. [°C]")
+```
+
+```{r}
+#remove useless dataframes if u want
+rm(combined_df)
+rm(pivoted_OD)
+rm(Overnight_withBacteriocin_PUT_YOUR_FILE_NAME)
+rm(hr_growth)
+```
+
+#make a key col
+```{r}
+df_clean<- df_clean |>
+   mutate(key = case_when(
+      str_detect(well_ID, "STRAIN NAME 1") ~ "STRAIN NAME 1",
+    str_detect(well_ID,"STRAIN NAME 2") ~ "STRAIN NAME 2",
+    TRUE ~ "LB"  # default for unmatched values
+  ))
+```
+
+
+#plot curve
+```{r} 
+#STRAIN 1 plot
+STRAIN_NAME_1_curve<- df_clean |>
+  filter(key == "STRAIN NAME 1") |>
+ggplot( 
+       aes(x = `Time [s]`, y = OD, color = `well_ID`)) +
+  geom_point() +
+   scale_color_viridis_d(option = "turbo") +
+   labs(title = "Overnight_withBacteriocin_STRAIN_NAME_1")
+
+STRAIN_NAME_1_curve
+```
+
+```{r}
+#change name
+ggsave("STRAIN_NAME_1_96well_261009.png", plot = STRAIN_NAME_1_curve)
+```
+
+```{r}
+#STRAIN NAME 2 plot
+STRAIN_NAME_2_curve<- df_clean |>
+  filter(key == "STRAIN_NAME_2") |>
+ggplot( 
+       aes(x = `Time [s]`, y = OD, color = `well_ID`)) +
+  geom_point() +
+   scale_color_viridis_d(option = "turbo") +
+  labs(title = "Overnight_withBacteriocin_STRAIN_NAME_2")
+
+STRAIN_NAME_2_curve
+```
+
+```{r}
+ggsave("STRAIN_NAME_2_curve_96well_261009.png", plot = STRAIN_NAME_2_curve_curve)
+
+```
+
