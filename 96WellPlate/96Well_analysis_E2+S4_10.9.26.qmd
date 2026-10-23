@@ -5,6 +5,7 @@ format: html
 #import file
 ```{r}
 #make sure you set the folder where your file is saved as the current working directory
+#use setwd() or do this in R directly
 #check whether the excel file names are the same and don't change the dataframe name
 library(readxl)
 library(tidyverse)
@@ -115,7 +116,18 @@ df_summarise<-df_clean |>
 #plot curve
 ```{r} 
 #E2 plot
-E2_curve<- df_summarise |>
+E2_curve<- df_clean |>
+  filter(key == "E2") |>
+ggplot( 
+       aes(x = `Time [s]`, y = OD, color = well_ID)) +
+  geom_point() +
+   scale_color_viridis_d(option = "turbo") +
+   labs(title = "Overnight_withBacteriocin_E2")
+
+ggsave("E2_96well_261009.png", plot = E2_curve)
+
+
+E2_curve_EB<- df_summarise |>
   filter(key == "E2") |>
 ggplot( 
        aes(x = `Time [s]`, y = mean, color = conc_ID)) +
@@ -123,9 +135,10 @@ ggplot(
   geom_errorbar(aes(ymin = min, ymax = max, color = conc_ID), 
                 width = 0.2)+
    scale_color_viridis_d(option = "turbo") +
-   labs(title = "Overnight_withBacteriocin_E2")
+   labs(title = "Overnight_withBacteriocin_E2",
+        y="Mean OD")
 
-ggsave("E2_96well_261009.png", plot = E2_curve)
+ggsave("E2_96well_errorBar_261009.png", plot = E2_curve_EB)
 
 E2_curve_CV<- df_summarise |>
   filter(key == "E2") |>
@@ -134,7 +147,8 @@ ggplot(
   geom_line() +
   geom_point() +
   scale_color_viridis_d(option = "turbo") +
-  labs(title = "Overnight_withBacteriocin_E2_CV")
+  labs(title = "Overnight_withBacteriocin_E2_CV",
+       y="Coefficient of Variation")
 
 ggsave("E2_96well_CV_261009.png", plot = E2_curve_CV)
 
@@ -142,7 +156,17 @@ ggsave("E2_96well_CV_261009.png", plot = E2_curve_CV)
 
 ```{r}
 #S4 plot
-S4_curve<- df_summarise |>
+S4_curve<- df_clean |>
+  filter(key == "S4") |>
+ggplot( 
+       aes(x = `Time [s]`, y = OD, color = well_ID)) +
+  geom_point() +
+   scale_color_viridis_d(option = "turbo") +
+   labs(title = "Overnight_withBacteriocin_S4")
+
+ggsave("S4_96well_261009.png", plot = S4_curve)
+
+S4_curve_EB<- df_summarise |>
   filter(key == "S4") |>
 ggplot( 
        aes(x = `Time [s]`, y = mean, color = conc_ID)) +
@@ -150,9 +174,10 @@ ggplot(
   geom_errorbar(aes(ymin = min, ymax = max, color = conc_ID), 
                 width = 0.2)+
    scale_color_viridis_d(option = "turbo") +
-   labs(title = "Overnight_withBacteriocin_S4")
+   labs(title = "Overnight_withBacteriocin_S4",
+        y="Mean OD")
 
-ggsave("S4_96well_261009.png", plot = S4_curve)
+ggsave("S4_96well_errorBar_261009.png", plot = S4_curve_EB)
 
 
 S4_curve_CV<- df_summarise |>
@@ -162,7 +187,8 @@ ggplot(
   geom_line() +
   geom_point() +
   scale_color_viridis_d(option = "turbo") +
-  labs(title = "Overnight_withBacteriocin_S4_CV")
+  labs(title = "Overnight_withBacteriocin_S4_CV",
+       y="Coefficient of Variation")
 
 ggsave("S4_96well_CV_261009.png", plot = S4_curve_CV)
 ```
