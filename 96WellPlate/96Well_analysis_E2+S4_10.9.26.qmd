@@ -64,34 +64,106 @@ df_clean<- df_clean |>
     TRUE ~ "LB"  # default for unmatched values
   ))
 ```
+```{r}
+df_clean<- df_clean |>
+  mutate(replicate = case_when(
+    str_ends(well_ID, "1") ~"1",
+    str_ends(well_ID, "2") ~"2",
+    str_ends(well_ID, "3") ~"3",
+    TRUE ~ NA  # default for unmatched values
+  ))
+df_clean<- df_clean |>
+  mutate(bacteriocin_conc = case_when(
+    str_starts(well_ID, "0") ~"0",
+    str_starts(well_ID, "2") ~"2",
+    str_starts(well_ID, "4") ~"4",
+    str_starts(well_ID, "8") ~"8",
+    str_starts(well_ID, "10") ~"10",
+    str_starts(well_ID, "16") ~"16",
+    str_starts(well_ID, "32") ~"32",
+    str_starts(well_ID, "48") ~"48",
+    str_starts(well_ID, "64") ~"64",
+    str_starts(well_ID, "82") ~"82",
+    str_starts(well_ID, "100") ~"100",
+    TRUE ~ NA  # default for unmatched values
+  ))
+```
+```{r}
+df_clean<- df_clean |>
+  mutate(trial_ID = paste(key, replicate, sep = "_"),
+         conc_ID = paste(key, bacteriocin_conc, sep = "_"))
+
+df_clean[df_clean == "E2_NA"] <- "LB"
+df_clean[df_clean == "S4_NA"] <- "LB"
+
+```
+
+#error bar
+```{r}
+df_summarise<-df_clean |>
+  group_by(key, conc_ID, `Time [s]`) |>
+  summarise(
+    min=min(OD, na.rm = TRUE),
+    max=max(OD, na.rm = TRUE),
+    mean = mean(OD, na.rm = TRUE),
+    sd = sd(OD, na.rm = TRUE),
+    .groups = "drop") %>%
+  mutate(CV = sd/mean)
+```
 
 
 #plot curve
 ```{r} 
 #E2 plot
-E2_curve<- df_clean |>
+E2_curve<- df_summarise |>
   filter(key == "E2") |>
 ggplot( 
-       aes(x = `Time [s]`, y = OD, color = `well_ID`)) +
+       aes(x = `Time [s]`, y = mean, color = conc_ID)) +
   geom_point() +
+  geom_errorbar(aes(ymin = min, ymax = max, color = conc_ID), 
+                width = 0.2)+
    scale_color_viridis_d(option = "turbo") +
-   labs(title = "Overnight_withBacteriocin_E22")
+   labs(title = "Overnight_withBacteriocin_E2")
 
 ggsave("E2_96well_261009.png", plot = E2_curve)
+
+E2_curve_CV<- df_summarise |>
+  filter(key == "E2") |>
+ggplot( 
+       aes(x = `Time [s]`, y = CV, color = conc_ID)) +
+  geom_line() +
+  geom_point() +
+  scale_color_viridis_d(option = "turbo") +
+  labs(title = "Overnight_withBacteriocin_E2_CV")
+
+ggsave("E2_96well_CV_261009.png", plot = E2_curve_CV)
 
 ```
 
 ```{r}
 #S4 plot
-S4_curve<- df_clean |>
+S4_curve<- df_summarise |>
   filter(key == "S4") |>
 ggplot( 
-       aes(x = `Time [s]`, y = OD, color = `well_ID`)) +
+       aes(x = `Time [s]`, y = mean, color = conc_ID)) +
   geom_point() +
+  geom_errorbar(aes(ymin = min, ymax = max, color = conc_ID), 
+                width = 0.2)+
    scale_color_viridis_d(option = "turbo") +
-  labs(title = "Overnight_withBacteriocin_S4")
+   labs(title = "Overnight_withBacteriocin_S4")
 
 ggsave("S4_96well_261009.png", plot = S4_curve)
 
+
+S4_curve_CV<- df_summarise |>
+  filter(key == "E2") |>
+ggplot( 
+       aes(x = `Time [s]`, y = CV, color = conc_ID)) +
+  geom_line() +
+  geom_point() +
+  scale_color_viridis_d(option = "turbo") +
+  labs(title = "Overnight_withBacteriocin_S4_CV")
+
+ggsave("S4_96well_CV_261009.png", plot = S4_curve_CV)
 ```
 
