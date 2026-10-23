@@ -66,6 +66,9 @@ df_clean<- df_clean |>
     str_detect(well_ID,"STRAIN NAME 2") ~ "STRAIN NAME 2",
     TRUE ~ "LB"  # default for unmatched values
   ))
+
+
+final_data <- df_clean[, lapply(mean), by = well_ID]
 ```
 
 
