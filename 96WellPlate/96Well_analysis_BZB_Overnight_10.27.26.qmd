@@ -1,0 +1,109 @@
+---
+title: "96Well_analysis_BZB_Overnight_10.27.26"
+format: html
+editor: visual
+---
+#import file
+
+```{r}
+#make sure you set the folder where your file is saved as the current working directory
+#check whether the excel file names are the same and don't change the dataframe name
+library(readxl)
+library(tidyverse)
+
+#Put in file names
+BZB_90min <- read_excel("10_27_overnight_data_cleaned.xlsx", sheet="first")
+BZB_overnight <- read_excel("10_27_overnight_data_cleaned.xlsx", sheet="second")
+```
+
+#clean and combine
+
+```{r}
+BZB_90min$"Cycle Nr." <- as.numeric(BZB_90min$"Cycle Nr.")
+
+BZB_overnight$"Cycle Nr." <- as.numeric(BZB_overnight$"Cycle Nr.")
+```
+
+```{r}
+BZB_overnight$"Cycle Nr." <- BZB_overnight$"Cycle Nr." + 90
+```
+
+```{r}
+BZB_overnight$Time_s <- BZB_overnight$Time_s + 5400
+
+```
+
+```{r}
+combined_df <- bind_rows(BZB_90min, BZB_overnight)
+```
+
+```{r}
+#preserve both cycle nr. and time
+pivoted_OD <- combined_df %>%
+pivot_longer(cols = -c(1,2), names_to = "well_ID", values_to = "OD")
+```
+
+```{r}
+#change Time [s] to Time [h]
+df_clean <- pivoted_OD%>%
+  mutate(Time_min=round(Time_s/60,1),
+         Time_h=round(Time_min/60,1))%>%
+  rename(Cycle=`Cycle Nr.`)%>%
+  select(Cycle, Time_h, Time_min, everything())
+  
+```
+
+#make a key col
+
+```{r}
+df_clean$well_ID_Copy <- df_clean$well_ID
+
+df_clean<-df_clean %>%
+  separate_wider_delim(
+    cols = well_ID_Copy,
+    delim = "_",
+    names = c("well", "BZB_conc", "type")
+  )
+
+df_clean<- df_clean %>%
+  mutate(numeric_conc = as.numeric(gsub("[^0-9.]", "", BZB_conc)))
+
+df_clean$numeric_conc <- factor(df_clean$numeric_conc)
+```
+
+
+
+#calculate mean from replicates
+
+```{r}
+df_summarise <- df_clean %>%
+  group_by(Time_h, BZB_conc, numeric_conc) %>%
+  summarise(
+    min=min(OD, na.rm = TRUE),
+    max=max(OD, na.rm = TRUE),
+    mean = mean(OD, na.rm = TRUE),
+    sd = sd(OD, na.rm = TRUE),
+    .groups = "drop") %>%
+  mutate(CV = sd/mean)
+
+```
+
+#plot curves
+
+```{r}
+BZB_curve<- df_summarise |>
+ggplot( 
+       aes(x = Time_h, y = mean, color = numeric_conc)) +
+  geom_point() +
+  geom_line()+
+  #geom_errorbar(aes(ymin = min, ymax = max, color = cipro_ug_mL, group =cipro_ug_mL), width = 0.2)+
+   labs(title = "BZB Overnight Growth Curve 10.27",
+        y="Mean OD",
+        color="BZB volume (uL/well)",
+        caption="NA is the LB-only Control")
+
+BZB_curve
+
+#check working directory before saving!
+ggsave("./Plots/BZB Overnight Growth Curve 102726.png", plot = BZB_curve, width = 8, height = 5, units = "in", dpi = 300)
+```

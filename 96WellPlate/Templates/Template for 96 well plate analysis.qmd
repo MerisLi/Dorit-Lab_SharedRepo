@@ -1,0 +1,148 @@
+---
+title: "Template for 96 Well Plate"
+format: html
+---
+
+#import file
+```{r}
+#make sure you set the folder where your file is saved as the current working directory
+#check whether the excel file names are the same and don't change the dataframe name
+library(readxl)
+library(tidyverse)
+
+#Put in file names
+hr_growth <- read_excel("_______.xlsx")
+
+Overnight_withBacteriocin_E2_S4 <- read_excel("_______.xlsx")
+```
+
+#clean and combine
+```{r}
+Overnight_withBacteriocin$"Cycle Nr." <- as.numeric(Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Cycle Nr.")
+
+hr_growth$"Cycle Nr." <- as.numeric(hr_growth$"Cycle Nr.")
+```
+
+```{r}
+Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Cycle Nr." <- Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Cycle Nr." + 6
+```
+
+```{r}
+Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Time [s]" <- Overnight_withBacteriocin_PUT_YOUR_FILE_NAME$"Time [s]" + 3000
+
+```
+
+```{r}
+combined_df <- bind_rows(hr_growth, Overnight_withBacteriocin_PUT_YOUR_FILE_NAME)
+```
+
+```{r}
+#preserve both cycle nr. and time
+pivoted_OD <- combined_df%>%
+  select(-3) %>% #if there's a temperature col, remove it before pivot_longer
+  pivot_longer(cols = -c(1,2), names_to = "well_ID", values_to = "OD")
+```
+
+```{r}
+#add other time units if you want 
+df_clean <- pivoted_OD%>%
+  mutate(Time_min=round(`Time [s]`/60,1),
+         Time_h=round(Time_min/60,1))%>%
+  rename(Cycle=`Cycle Nr.`,
+         Time_s = `Time [s]`)%>% #rename if you want
+  select(Cycle, Time_h, Time_min, everything()) #rearrange cols
+```
+
+```{r}
+#remove useless dataframes if u want
+rm(combined_df)
+rm(pivoted_OD)
+rm(Overnight_withBacteriocin_PUT_YOUR_FILE_NAME)
+rm(hr_growth)
+```
+
+#make a key col
+```{r}
+df_clean<- df_clean |>
+   mutate(key = case_when(
+      str_detect(well_ID, "STRAIN NAME 1") ~ "STRAIN NAME 1",
+    str_detect(well_ID,"STRAIN NAME 2") ~ "STRAIN NAME 2",
+    TRUE ~ "LB"  # default for unmatched values
+  ))
+
+#final_data <- df_clean[, lapply(mean), by = well_ID]
+```
+
+```{r}
+df_clean$well_ID_Copy <- df_clean$well_ID
+
+df_clean<-df_clean %>%
+  separate_wider_delim(
+    cols = well_ID_Copy, #apply seperate on the duplicated col
+    delim = "_",
+    names = c("well", "conc", "type")
+  )
+
+df_clean<- df_clean %>%
+  mutate(numeric_conc = as.numeric(gsub("[^0-9.]", "", conc))) #isolate the numeric value (e.g. bacteriocin conc)
+
+df_clean$numeric_conc <- factor(df_clean$numeric_conc) #factorize it so curves can be colored by conc. numeric order
+```
+
+#calculate mean from replicates
+```{r}
+df_summarise <- df_clean %>%
+  group_by(Time_h, conc, numeric_conc) %>%
+  summarise(
+    min=min(OD, na.rm = TRUE),
+    max=max(OD, na.rm = TRUE),
+    mean = mean(OD, na.rm = TRUE),
+    sd = sd(OD, na.rm = TRUE),
+    .groups = "drop") %>%
+  mutate(CV = sd/mean)
+
+```
+
+
+#plot curve
+```{r} 
+#Mean OD plot
+NAME_1_curve<- df_summarise |>
+  filter(key == "____") |>
+ggplot( 
+       aes(x = Time_h, y = mean, color = numeric_conc)) + #color by a factorized variable
+  geom_point() +
+  geom_line()+
+  #geom_errorbar(aes(ymin = min, ymax = max, color = numeric_conc, group =numeric_conc), width = 0.2)+
+   scale_color_viridis_d(option = "turbo") +
+   labs(title = "____",
+        y="Mean OD",
+        color="____",)
+
+NAME_1_curve
+```
+
+```{r}
+#change name
+ggsave("./Plots/STRAIN_NAME_1_96well_time.png", plot = NAME_1_curve)
+```
+
+```{r}
+#Plot
+NAME_2_curve<- df_clean |>
+  filter(key == "STRAIN_NAME_2") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = `well_ID`)) +
+  geom_point() +
+  geom_line()+
+   scale_color_viridis_d(option = "turbo") +
+  labs(title = "Overnight_withBacteriocin_STRAIN_NAME_2")
+
+STRAIN_NAME_2_curve
+```
+
+```{r}
+ggsave("./Plots/STRAIN_NAME_2_curve_96well_261009.png", plot = NAME_2_curve)
+
+```
+
