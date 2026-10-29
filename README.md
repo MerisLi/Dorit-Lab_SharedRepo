@@ -7,4 +7,4 @@ This is a shared repository for all Dorit Lab members to upload their lab data a
 3.  Save your in the corresponding **folder** for the experiment you're running! Please feel free to create a folder for your experiment
 4.  Remember to **pull** to keep up-to-date & **push** every time you finished your work
 
-If you have any questions, please contact Meris ([mli88\@smith.edu](mailto:mli88@smith.edu){.email})
+If you have any questions, please contact Meris ([mli88\@smith.edu](mailto:mli88@smith.edu))
