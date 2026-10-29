@@ -8,6 +8,6 @@ This is a shared repository for all Dorit Lab members to upload lab data and col
 4.  Remember to **pull** to keep up-to-date & **push** every time you finished your work
 5.  Please **do not** delete others' work!!
 
---> How to use [GitHub]([https://docs.github.com/en/get-started/using-github/hello-world])
+--> How to use [GitHub](https://docs.github.com/en/get-started/using-github/hello-world)
 
 If you have any questions, please contact Meris ([mli88\@smith.edu](mailto:mli88@smith.edu))
