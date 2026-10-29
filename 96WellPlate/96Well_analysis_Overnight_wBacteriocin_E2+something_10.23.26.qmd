@@ -1,0 +1,140 @@
+---
+title: "96Well_analysis_Overnight_wBacteriocin_E1+E2_10.23.26"
+format: html
+editor: visual
+---
+
+#import file
+
+```{r}
+#make sure you set the folder where your file is saved as the current working directory
+#check whether the excel file names are the same and don't change the dataframe name
+library(readxl)
+library(tidyverse)
+
+#Put in file names
+E_1hGrowth <- read_excel("10_23_Overnight_wBacteriocin_E1+E2_cleaned.xlsx", sheet="first")
+E_90min <- read_excel("10_23_Overnight_wBacteriocin_E1+E2_cleaned.xlsx", sheet="second")
+E_overnight <- read_excel("10_23_Overnight_wBacteriocin_E1+E2_cleaned.xlsx", sheet="third")
+```
+
+#clean and combine
+
+```{r}
+E_1hGrowth$"Cycle Nr." <- as.numeric(E_1hGrowth$"Cycle Nr.")
+
+E_90min$"Cycle Nr." <- as.numeric(E_90min$"Cycle Nr.")
+
+E_overnight$"Cycle Nr." <- as.numeric(E_overnight$"Cycle Nr.")
+```
+
+```{r}
+E_90min$"Cycle Nr." <- E_90min$"Cycle Nr." + 60
+
+E_overnight$"Cycle Nr." <- E_overnight$"Cycle Nr." + 150
+
+E_90min$`Time [s]` <- E_90min$`Time [s]` + 3600
+
+E_overnight$`Time [s]` <- E_overnight$`Time [s]` + 9000
+
+```
+
+```{r}
+combined_df <- bind_rows(E_1hGrowth, E_90min)
+combined_df <- bind_rows(combined_df, E_overnight)
+```
+
+```{r}
+#preserve both cycle nr. and time
+pivoted_OD <- combined_df %>%
+  select(-3)%>%
+  pivot_longer(cols = -c(1,2), names_to = "well_ID", values_to = "OD")
+```
+
+```{r}
+#change Time [s] to Time [h]
+df_clean <- pivoted_OD%>%
+  rename(Cycle=`Cycle Nr.`,
+         Time_s = `Time [s]`)%>%
+  mutate(Time_min=round(Time_s/60,1),
+         Time_h=round(Time_min/60,1))%>%
+  select(Cycle, Time_h, Time_min, everything())
+  
+```
+
+#make a key col
+
+```{r}
+df_clean$well_ID_Copy <- df_clean$well_ID
+
+df_clean<-df_clean %>%
+  separate_wider_delim(
+    cols = well_ID_Copy,
+    delim = "_",
+    names = c("well", "Bacteriocin_conc", "strain", "rep"),
+    too_few = "align_start"
+  )
+
+df_clean<- df_clean %>%
+  mutate(numeric_conc = as.numeric(gsub("[^0-9.]", "", Bacteriocin_conc)))
+
+df_clean$numeric_conc <- factor(df_clean$numeric_conc)
+```
+
+#calculate mean from replicates
+
+```{r}
+df_summarise <- df_clean %>%
+  group_by(Time_h, strain, Bacteriocin_conc, numeric_conc) %>%
+  summarise(
+    min=min(OD, na.rm = TRUE),
+    max=max(OD, na.rm = TRUE),
+    mean = mean(OD, na.rm = TRUE),
+    sd = sd(OD, na.rm = TRUE),
+    .groups = "drop") %>%
+  mutate(CV = sd/mean)
+
+df_summarise <- df_summarise %>%
+  filter(Bacteriocin_conc != "mistake")
+```
+
+#plot curves
+
+```{r}
+E1_curve<- df_summarise |>
+  filter(strain == "E1") |>
+ggplot( 
+       aes(x = Time_h, y = mean, color = numeric_conc)) +
+  geom_point() +
+  geom_line()+
+  #geom_errorbar(aes(ymin = min, ymax = max, color = cipro_ug_mL, group =cipro_ug_mL), width = 0.2)+
+   labs(title = "E1 Overnight Killing Curve 10.23",
+        y="Mean OD",
+        color="Bacteriocin volume (uL/well)",
+        caption="NA is the LB-only Control")
+
+E1_curve
+
+#check working directory before saving!
+ggsave("./Plots/E1_Overnight_Killing_Curve_102326.png", plot = E1_curve, width = 8, height = 5, units = "in", dpi = 300)
+```
+
+```{r}
+E2_curve<- df_summarise |>
+  filter(strain == "E2") |>
+ggplot( 
+       aes(x = Time_h, y = mean, color = numeric_conc)) +
+  geom_point() +
+  geom_line()+
+  #geom_errorbar(aes(ymin = min, ymax = max, color = cipro_ug_mL, group =cipro_ug_mL), width = 0.2)+
+   labs(title = "E2 Overnight Killing Curve 10.23",
+        y="Mean OD",
+        color="Bacteriocin volume (uL/well)",
+        caption="NA is the LB-only Control")
+
+E2_curve
+
+#check working directory before saving!
+ggsave("./Plots/E2_Overnight_Killing_Curve_102326.png", plot = E2_curve, width = 8, height = 5, units = "in", dpi = 300)
+```
+
