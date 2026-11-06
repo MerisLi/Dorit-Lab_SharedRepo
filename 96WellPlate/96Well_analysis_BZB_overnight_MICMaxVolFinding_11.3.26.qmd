@@ -310,7 +310,7 @@ ggplot(
         color="E2 volume (uL/well)",
         caption="0 is the Growth Control")
 
-ggsave("./Plots/BZB50uL_byWell_rep3_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB50_byWell_rep3, width = 8, height = 5, units = "in", dpi = 300)
+ggsave("./Plots/BZB50uL_byWell_rep3_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB50_byWell_rep, width = 8, height = 5, units = "in", dpi = 300)
 ```
 
 ##try CV
