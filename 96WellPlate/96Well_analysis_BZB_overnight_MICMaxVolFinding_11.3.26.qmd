@@ -1,0 +1,390 @@
+---
+title: "96Well_analysis_BZB_overnight_MICMaxVolFinding_11.3.26"
+format: html
+editor: visual
+---
+
+#import file
+
+```{r}
+#make sure you set the folder where your file is saved as the current working directory
+#check whether the excel file names are the same and don't change the dataframe name
+library(readxl)
+library(tidyverse)
+
+#Put in file names
+BZB_60min <- read_excel("11.3_BZB_overnight_MICMaxVolFinding_cleaned.xlsx", sheet="first_1h")
+BZB_90min <- read_excel("11.3_BZB_overnight_MICMaxVolFinding_cleaned.xlsx", sheet="second_1.5h")
+BZB_overnight <- read_excel("11.3_BZB_overnight_MICMaxVolFinding_cleaned.xlsx", sheet="third_overnight")
+#Something went wrong during the overnight measurement... So there's only 79 obs. ~13h
+```
+
+#clean and combine
+
+```{r}
+BZB_60min$"Cycle" <- as.numeric(BZB_60min$"Cycle")
+
+BZB_90min$"Cycle" <- as.numeric(BZB_90min$"Cycle")
+
+BZB_overnight$"Cycle" <- as.numeric(BZB_overnight$"Cycle")
+```
+
+```{r}
+BZB_90min$"Cycle" <- BZB_90min$"Cycle" + 44
+
+BZB_overnight$"Cycle" <- BZB_overnight$"Cycle" + 134
+```
+
+```{r}
+BZB_90min$Time_s <- BZB_90min$Time_s + 3600
+
+BZB_overnight$Time_s <- BZB_overnight$Time_s + 9000
+```
+
+```{r}
+combined_df <- purrr::reduce(list(BZB_60min, BZB_90min, BZB_overnight), bind_rows)
+```
+
+```{r}
+#preserve both cycle nr. and time
+pivoted_OD <- combined_df %>%
+pivot_longer(cols = -c(1,2), names_to = "well_ID", values_to = "OD")
+```
+
+```{r}
+#change Time [s] to Time [h]
+df_clean <- pivoted_OD%>%
+  mutate(Time_min=round(Time_s/60,1),
+         Time_h=round(Time_min/60,1))%>%
+  select(Cycle, Time_h, Time_min, everything())
+  
+```
+
+#make keys
+
+```{r}
+df_clean$well_ID_Copy <- df_clean$well_ID
+
+df_clean<-df_clean %>%
+  separate_wider_delim(
+    cols = well_ID_Copy,
+    delim = "_",
+    names = c("well", "bacteriocin_vol", "BZB_vol")
+  )
+
+df_clean<- df_clean %>%
+  mutate(
+    numeric_vol = if_else(
+      grepl("uLE2", bacteriocin_vol),
+      as.numeric(gsub("uLE2", "", bacteriocin_vol)),
+      0)
+  ) %>%
+  mutate(
+    numeric_vol = if_else(
+      bacteriocin_vol == "LB",
+      NA_real_,
+      numeric_vol
+    )
+  )
+
+df_clean$numeric_vol <- factor(df_clean$numeric_vol)
+
+
+df_clean<- df_clean %>%
+  mutate(
+    BZB_trial = case_when(
+      str_starts(BZB_vol, "30uL") ~ "BZB30uL",
+      str_starts(BZB_vol, "50uL") ~ "BZB50uL",
+      str_starts(BZB_vol, "C") ~ "Control"
+    )
+  ) 
+
+df_clean<- df_clean %>%
+  mutate(
+    reps = str_extract(BZB_vol, "[0-9]$")
+  ) 
+```
+
+#calculate mean from replicates
+
+```{r}
+df_summarise <- df_clean %>%
+  group_by(Time_h, BZB_trial, bacteriocin_vol, numeric_vol) %>%
+  summarise(
+    min=min(OD, na.rm = TRUE),
+    max=max(OD, na.rm = TRUE),
+    mean = mean(OD, na.rm = TRUE),
+    sd = sd(OD, na.rm = TRUE),
+    .groups = "drop") %>%
+  mutate(
+    CV = sd/mean,
+    log_mean = log10(mean),
+    lower_error = log10(mean) - log10(mean - sd),
+    upper_error = log10(mean + sd) - log10(mean))
+
+```
+
+#make subsets
+```{r}
+BZB50 <- df_clean %>%
+  filter(BZB_trial == "BZB50uL")
+
+BZB30  <- df_clean %>%
+  filter(BZB_trial == "BZB30uL")
+
+Control <- df_clean %>%
+  filter(BZB_trial == "Control")
+```
+
+
+#plot curves
+
+```{r}
+BZB30_curve<- df_summarise |>
+  filter(BZB_trial %in% c("BZB30uL", "Control")) |>
+ggplot( 
+       aes(x = Time_h, y = mean, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  #geom_errorbar(aes(ymin = mean-sd, ymax = mean+sd, color = numeric_vol), width = 0.2)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "30uL BZB per well",
+        y="Mean OD",
+        color="E2 volume (uL/well)",
+        caption="NA is the LB-only Control; 0 is the Growth Control")
+
+BZB30_curve
+
+#check working directory before saving!
+ggsave("./Plots/BZB30uL_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB30_curve, width = 8, height = 5, units = "in", dpi = 300)
+```
+
+```{r}
+BZB50_curve<- df_summarise |>
+  filter(BZB_trial %in% c("BZB50uL", "Control")) |>
+ggplot( 
+       aes(x = Time_h, y = mean, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  #geom_errorbar(aes(ymin = mean-sd, ymax = mean+sd, color = numeric_vol), width = 0.2)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "50uL BZB per well",
+        y="Mean OD",
+        color="E2 volume (uL/well)",
+        caption="NA is the LB-only Control; 0 is the Growth Control")
+
+BZB50_curve
+
+#check working directory before saving!
+ggsave("./Plots/BZB50uL_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB50_curve, width = 8, height = 5, units = "in", dpi = 300)
+```
+
+##wrap by triplicates
+```{r}
+BZB30_reps_curve<- df_clean |>
+  filter(BZB_trial == "BZB30uL") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~reps)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "30uL BZB per well, triplicates",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+BZB30_reps_curve
+
+ggsave("./Plots/BZB30uL_reps_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB30_reps_curve, width = 8, height = 5, units = "in", dpi = 300)
+```
+
+```{r}
+BZB50_reps_curve<- df_clean |>
+  filter(BZB_trial == "BZB50uL") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~reps)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "50uL BZB per well, triplicates",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+BZB50_reps_curve
+
+ggsave("./Plots/BZB50uL_reps_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB50_reps_curve, width = 8, height = 5, units = "in", dpi = 300)
+```
+
+##by well
+```{r}
+BZB30_byWell_rep1<- BZB30 |>
+  filter(reps == "1") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~well)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "30uL BZB per well",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+ggsave("./Plots/BZB30uL_byWell_rep1_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB30_byWell_rep1, width = 8, height = 5, units = "in", dpi = 300)
+
+BZB30_byWell_rep2<- BZB30 |>
+  filter(reps == "2") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~well)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "30uL BZB per well",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+ggsave("./Plots/BZB30uL_byWell_rep2_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB30_byWell_rep2, width = 8, height = 5, units = "in", dpi = 300)
+
+BZB30_byWell_rep3<- BZB30 |>
+  filter(reps == "3") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~well)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "30uL BZB per well",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+ggsave("./Plots/BZB30uL_byWell_rep3_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB30_byWell_rep3, width = 8, height = 5, units = "in", dpi = 300)
+```
+
+```{r}
+BZB50_byWell_rep1<- BZB50 |>
+  filter(reps == "1") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~well)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "50uL BZB per well",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+ggsave("./Plots/BZB50uL_byWell_rep1_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB50_byWell_rep1, width = 8, height = 5, units = "in", dpi = 300)
+
+BZB50_byWell_rep2<- BZB50 |>
+  filter(reps == "2") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~well)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "50uL BZB per well",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+ggsave("./Plots/BZB50uL_byWell_rep2_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB50_byWell_rep2, width = 8, height = 5, units = "in", dpi = 300)
+
+BZB50_byWell_rep3<- BZB50 |>
+  filter(reps == "3") |>
+ggplot( 
+       aes(x = Time_h, y = OD, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+  facet_wrap(~well)+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "50uL BZB per well",
+        y="OD",
+        color="E2 volume (uL/well)",
+        caption="0 is the Growth Control")
+
+ggsave("./Plots/BZB50uL_byWell_rep3_overnight_MICMaxVolFinding_11.3.26.png", plot = BZB50_byWell_rep3, width = 8, height = 5, units = "in", dpi = 300)
+```
+
+##try CV
+```{r}
+BZB30_CV_curve<- df_summarise |>
+  filter(BZB_trial %in% c("BZB30uL", "Control")) |>
+ggplot( 
+       aes(x = Time_h, y = CV, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "30uL BZB per well",
+        y="Coefficient of Variation",
+        color="E2 volume (uL/well)",
+        caption=str_wrap("NA is the LB-only Control; 0 is the Growth Control; CV is a relative measure of dispersion that expresses the ratio of the standard deviation to the mean"))
+
+
+
+BZB50_CV_curve<- df_summarise |>
+  filter(BZB_trial %in% c("BZB50uL", "Control")) |>
+ggplot( 
+       aes(x = Time_h, y = CV, color = numeric_vol)) +
+  geom_point() +
+  geom_line()+
+   labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "50uL BZB per well",
+        y="Coefficient of Variation",
+        color="E2 volume (uL/well)",
+        caption=str_wrap("NA is the LB-only Control; 0 is the Growth Control; CV is a relative measure of dispersion that expresses the ratio of the standard deviation to the mean"))
+
+```
+
+
+##try log(mean)
+```{r}
+BZB30_log_curve<- df_summarise |>
+  filter(BZB_trial %in% c("BZB30uL", "Control")) |>
+ggplot(aes(x = Time_h, y = log_mean, color = numeric_vol)) +
+  geom_point() +
+  geom_errorbar(aes(
+      ymin = log_mean - lower_error,
+      ymax = log_mean + upper_error),
+    width = 0.1)+
+  labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "30uL BZB per well",
+        y="log(mean) OD",
+        color="E2 volume (uL/well)",
+        caption="NA is the LB-only Control; 0 is the Growth Control")
+
+
+
+BZB50_log_curve<- df_summarise |>
+  filter(BZB_trial %in% c("BZB50uL", "Control")) |>
+ggplot(aes(x = Time_h, y = log_mean, color = numeric_vol)) +
+  geom_point() +
+  geom_errorbar(aes(
+      ymin = log_mean - lower_error,
+      ymax = log_mean + upper_error),
+    width = 0.1)+
+  labs(title = "BZB Overnight MICMaxVolFinding w/ E2 11.3.26",
+        subtitle = "50uL BZB per well",
+        y="log(mean) OD",
+        color="E2 volume (uL/well)",
+        caption="NA is the LB-only Control; 0 is the Growth Control")
+```
+
+#other
+```{r}
+plateMap<- list(
+  BZB50 = BZB50 %>% distinct(well) %>% pull(well),
+  BZB30 = BZB30 %>% distinct(well) %>% pull(well),
+  Control = Control %>% distinct(well) %>% pull(well)
+)
+plateMap
+```
+
+
